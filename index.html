@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Fremantia — A Maths Fluency Adventure</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===================== HERO HEADER (persistent) ===================== -->
+  <div class="hero-header" id="hero-header" style="display:none;">
+    <div class="hero-header-name" id="hero-header-name" title="Tap for account options"></div>
+    <div class="hero-header-level" id="hero-header-level"></div>
+    <div class="hero-header-rank" id="hero-header-rank" title="Tap to see rank details"></div>
+    <button class="icon-btn header-icon-btn" id="weapons-icon-btn" title="Weapons">⚔️ Weapons</button>
+    <button class="icon-btn header-icon-btn" id="travel-icon-btn" title="Travel">🌀 Travel</button>
+    <button class="icon-btn header-icon-btn" id="leaderboards-icon-btn" title="Leaderboards">🏆 Leaderboards</button>
+  </div>
+  <div class="header-dropdown" id="player-dropdown" style="display:none;"></div>
+  <div class="header-dropdown" id="weapons-dropdown" style="display:none;"></div>
+  <div class="header-dropdown" id="travel-dropdown" style="display:none;"></div>
+
+  <!-- ===================== MAIN MENU ===================== -->
+  <div class="screen active" id="screen-mainmenu">
+    <div class="menu-card">
+      <div class="menu-title">Fremantia</div>
+      <div class="menu-subtitle">A Maths Fluency Adventure</div>
+
+      <input class="field" type="text" id="mm-username" placeholder="Username" autocomplete="off">
+      <input class="field" type="password" id="mm-password" placeholder="Password" autocomplete="off">
+      <div class="menu-error" id="mm-error" style="display:none;"></div>
+
+      <button class="btn big" id="login-btn" style="width:100%;">Log In</button>
+      <button class="btn secondary big" id="create-account-btn" style="width:100%; margin-top:12px;">Create Account</button>
+    </div>
+  </div>
+
+  <!-- ===================== FREMANTIA ===================== -->
+  <div class="screen" id="screen-fremantia">
+    <div class="topbar">
+      <div></div>
+      <div></div>
+    </div>
+    <h1 class="fremantia-title">Fremantia</h1>
+    <div class="fremantia-sub">Choose a realm to begin your adventure</div>
+    <div class="realm-grid" id="realm-grid"></div>
+    <div class="fifth-portal" id="fifth-portal"></div>
+    <div class="btn-row" style="margin:6px 0 26px;">
+      <button class="btn secondary" id="open-highscores-btn">🏆 High Scores</button>
+    </div>
+  </div>
+
+  <!-- ===================== HIGH SCORES ===================== -->
+  <div class="screen" id="screen-highscores">
+    <div class="topbar">
+      <button class="icon-btn" data-back-fremantia>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header" style="padding-bottom:0;">
+      <h2>🏆 Leaderboards</h2>
+      <div class="eyebrow-plain">Swipe sideways to see more</div>
+    </div>
+    <div class="leaderboard-scroll" id="leaderboard-scroll"></div>
+  </div>
+
+  <!-- ===================== REALM SCREEN ===================== -->
+  <div class="screen" id="screen-realm">
+    <div class="topbar">
+      <button class="icon-btn" data-back-fremantia>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2 id="realm-screen-title"></h2>
+      <div class="weapon-chip" id="realm-weapon-chip"></div>
+    </div>
+    <div class="world-list" id="world-list"></div>
+  </div>
+
+  <!-- ===================== WORLD SCREEN ===================== -->
+  <div class="screen" id="screen-world">
+    <div class="topbar">
+      <button class="icon-btn" data-back-realm>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2 id="world-screen-title"></h2>
+      <div class="eyebrow-plain" id="world-screen-sub"></div>
+    </div>
+    <div class="stage-list" id="stage-list"></div>
+  </div>
+
+  <!-- ===================== PORTAL INTRO ===================== -->
+  <div class="screen portal-intro" id="screen-portal-intro">
+    <div>
+      <div class="portal-visual"></div>
+      <h2 id="portal-intro-title">Unstable Portal</h2>
+      <p class="result-body" id="portal-intro-body"></p>
+      <div class="btn-row">
+        <button class="btn big" id="enter-portal-btn">Enter Portal ⚔️</button>
+      </div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn secondary" data-back-world>Not yet — go back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== BATTLE ===================== -->
+  <div class="screen" id="screen-battle">
+    <div class="battle-topbar">
+      <button class="icon-btn leave-battle-btn" id="leave-battle-btn" title="Leave battle">✕</button>
+      <div class="battle-topbar-center">
+        <div class="battle-chip" id="battle-weapon-chip"></div>
+        <div class="battle-chip" id="battle-weapon-lvl-chip"></div>
+        <div class="battle-chip" id="battle-weapon-dmg-chip"></div>
+        <div class="battle-chip" id="battle-realm-chip"></div>
+        <div class="battle-chip" id="battle-world-chip"></div>
+        <div class="battle-chip" id="battle-monster-chip"></div>
+        <div class="timer-pill" id="timer-pill">⏱ 60s</div>
+      </div>
+    </div>
+    <div class="stage-track" id="stage-track"></div>
+
+    <div class="monster-stage">
+      <div class="monster-name" id="monster-name"></div>
+      <div class="monster-role-tag" id="monster-role-tag"></div>
+      <div class="monster-sprite" id="monster-sprite"></div>
+      <div class="hp-bar-wrap"><div class="hp-bar-fill" id="hp-bar-fill"></div></div>
+      <div class="hp-label" id="hp-label"></div>
+    </div>
+
+    <div class="question-panel">
+      <div class="question-text" id="question-text"></div>
+      <div class="answer-display" id="answer-display">?</div>
+    </div>
+
+    <div class="numpad" id="numpad"></div>
+    <div class="keyboard-hint">⌨️ You can also type your answer and press Enter</div>
+  </div>
+
+  <!-- ===================== SUCCESS ===================== -->
+  <div class="screen result-screen success" id="screen-success">
+    <div class="result-icon">🏆</div>
+    <div class="result-title">Stage Cleared!</div>
+    <div class="result-body" id="success-body"></div>
+    <div class="choice-row" id="success-choice-row">
+      <button class="btn big choice-btn" id="success-continue-btn" data-choice="continue">Continue to Next Monster ⚔️</button>
+      <button class="btn secondary big choice-btn" id="success-return-btn" data-choice="return">Return to World</button>
+    </div>
+    <div class="eyebrow-plain" style="margin-top:10px;">⌨️ Use ↑/↓ then Enter, or just tap</div>
+  </div>
+
+  <!-- ===================== FAIL ===================== -->
+  <div class="screen result-screen fail" id="screen-fail">
+    <div class="result-icon">💨</div>
+    <div class="result-title">Stage Unsuccessful</div>
+    <div class="result-body">The portal began sealing shut, and your hero had to flee back through it before the fight could be finished. Nothing you've already earned is lost — but this stage needs another attempt.</div>
+    <div class="choice-row" id="fail-choice-row">
+      <button class="btn big choice-btn" id="fail-retry-btn" data-choice="retry">Try Again</button>
+      <button class="btn secondary big choice-btn" id="fail-back-btn" data-choice="return">Return to World</button>
+    </div>
+    <div class="eyebrow-plain" style="margin-top:10px;">⌨️ Use ↑/↓ then Enter, or just tap</div>
+  </div>
+
+</div>
+
+<script src="config.js"></script>
+<script src="gameData.js"></script>
+<script src="mathEngine.js"></script>
+<script src="gameState.js"></script>
+<script src="backend.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
