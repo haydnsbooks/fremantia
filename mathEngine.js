@@ -682,7 +682,7 @@ const GENERATORS = {
       quotient = randInt(2, 12);
       dividend = divisor * quotient * 10;
     } while (dividend % 100 !== 0);
-    return buildQ(dividend, divisor, "\u00f7", quotient);
+    return buildQ(dividend, divisor, "\u00f7", quotient * 10);
   },
   div_mult100_by10() {
     const quotient = randInt(10, 90);

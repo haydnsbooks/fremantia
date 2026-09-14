@@ -967,9 +967,25 @@ function showNextModal(queue, i, onDone) {
 // ---------------------------------------------------------------------------
 // BOOTSTRAP
 // ---------------------------------------------------------------------------
+// Two layouts: "standard" (calculator-style, 7-8-9 on top) and "inverted"
+// (phone/ATM-style, 1-2-3 on top). Stored per-device in localStorage since
+// this is a physical-layout preference, not tied to any one hero/login.
+const NUMPAD_LAYOUTS = {
+  standard: ["7","8","9","4","5","6","1","2","3",".","0","back"],
+  inverted: ["1","2","3","4","5","6","7","8","9",".","0","back"]
+};
+const NUMPAD_LAYOUT_KEY = "mathsFluencyGame_numpadLayout";
+
+function getNumpadLayout() {
+  return localStorage.getItem(NUMPAD_LAYOUT_KEY) === "inverted" ? "inverted" : "standard";
+}
+function setNumpadLayout(layout) {
+  localStorage.setItem(NUMPAD_LAYOUT_KEY, layout);
+}
+
 function buildNumpad() {
   const pad = el("numpad");
-  const keys = ["7","8","9","4","5","6","1","2","3",".","0","back"];
+  const keys = NUMPAD_LAYOUTS[getNumpadLayout()];
   pad.innerHTML = "";
   keys.forEach(k => {
     const b = document.createElement("button");
@@ -986,10 +1002,16 @@ function buildNumpad() {
   pad.appendChild(submit);
 }
 
+function toggleNumpadLayout() {
+  setNumpadLayout(getNumpadLayout() === "standard" ? "inverted" : "standard");
+  buildNumpad();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initMainMenu();
   buildNumpad();
   bindKeyboardControls();
+  el("numpad-flip-btn").addEventListener("click", toggleNumpadLayout);
   el("open-highscores-btn").addEventListener("click", openHighScores);
   el("leave-battle-btn").addEventListener("click", leaveBattle);
   document.querySelectorAll("[data-back-realm]").forEach(b => b.addEventListener("click", () => { renderRealmScreen(); showScreen("screen-realm"); }));

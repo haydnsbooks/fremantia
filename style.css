@@ -353,8 +353,10 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
   border-radius: 999px;
   background: rgba(0,0,0,0.35);
   border: 2px solid rgba(255,255,255,0.25);
-  min-width: 76px;
+  width: 92px;
+  flex-shrink: 0;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .timer-pill.urgent { background: rgba(224,104,104,0.35); border-color: var(--bad); animation: tickShake 0.5s ease-in-out infinite; color: #ffdede; }
 .timer-pill.safe { background: rgba(111,207,122,0.28); border-color: var(--ok); color: #d9ffdd; animation: none; }
@@ -476,6 +478,14 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
 }
 .answer-placeholder { opacity: 0.35; }
 
+.numpad-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 16px 6px;
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
+}
 .numpad {
   flex-shrink: 0;
   display: grid;
