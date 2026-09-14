@@ -329,7 +329,7 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
 @keyframes portalPulse { 0%,100% { box-shadow: 0 0 20px rgba(255,255,255,0.4);} 50% { box-shadow: 0 0 50px rgba(255,255,255,0.75);} }
 
 /* ---------------- Battle screen ---------------- */
-#screen-battle { position: relative; }
+#screen-battle { /* inherits position: absolute; inset: 0; overflow-y: auto; from .screen */ }
 .battle-topbar {
   display: flex;
   align-items: center;
