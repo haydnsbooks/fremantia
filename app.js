@@ -620,7 +620,12 @@ function startBattle(realmId, worldId, stageId) {
     inputBuffer: "",
     question: null,
     bossDefeated: false,
-    finished: false
+    finished: false,
+    // Locked while a correct answer is being resolved (hit animation,
+    // monster-defeat delay, etc.) so a fast double-tap on Attack can't
+    // register a second hit against the same question. Cleared as soon
+    // as the next question is loaded (or the battle ends).
+    locked: false
   };
 
   renderBattleChrome();
@@ -685,6 +690,7 @@ function currentMonster() {
 function loadQuestionForCurrentMonster() {
   battle.question = generateQuestion(battle.stage);
   battle.inputBuffer = "";
+  battle.locked = false;
   el("question-text").textContent = battle.question.text + " =";
   updateAnswerDisplay();
 }
@@ -722,6 +728,11 @@ function updateHpBar() {
 
 function numpadPress(key) {
   if (!battle || battle.finished) return;
+  // While a correct answer is being resolved (weapon-hit animation,
+  // monster-defeat pause, etc.) ignore further input — most importantly
+  // repeated taps on Attack — so one correct answer can never register
+  // as more than one hit.
+  if (battle.locked) return;
   if (key === "back") {
     battle.inputBuffer = battle.inputBuffer.slice(0, -1);
   } else if (key === "clear") {
@@ -738,12 +749,14 @@ function numpadPress(key) {
 }
 
 function submitAnswer() {
+  if (battle.locked) return;
   if (!battle.inputBuffer.length) return;
   const val = parseFloat(battle.inputBuffer);
   const correct = Math.abs(val - battle.question.answer) < 0.005;
   const display = el("answer-display");
 
   if (correct) {
+    battle.locked = true;
     display.classList.add("correct");
     applyHit();
   } else {
@@ -967,25 +980,9 @@ function showNextModal(queue, i, onDone) {
 // ---------------------------------------------------------------------------
 // BOOTSTRAP
 // ---------------------------------------------------------------------------
-// Two layouts: "standard" (calculator-style, 7-8-9 on top) and "inverted"
-// (phone/ATM-style, 1-2-3 on top). Stored per-device in localStorage since
-// this is a physical-layout preference, not tied to any one hero/login.
-const NUMPAD_LAYOUTS = {
-  standard: ["7","8","9","4","5","6","1","2","3",".","0","back"],
-  inverted: ["1","2","3","4","5","6","7","8","9",".","0","back"]
-};
-const NUMPAD_LAYOUT_KEY = "mathsFluencyGame_numpadLayout";
-
-function getNumpadLayout() {
-  return localStorage.getItem(NUMPAD_LAYOUT_KEY) === "inverted" ? "inverted" : "standard";
-}
-function setNumpadLayout(layout) {
-  localStorage.setItem(NUMPAD_LAYOUT_KEY, layout);
-}
-
 function buildNumpad() {
   const pad = el("numpad");
-  const keys = NUMPAD_LAYOUTS[getNumpadLayout()];
+  const keys = ["7","8","9","4","5","6","1","2","3",".","0","back"];
   pad.innerHTML = "";
   keys.forEach(k => {
     const b = document.createElement("button");
@@ -1002,16 +999,10 @@ function buildNumpad() {
   pad.appendChild(submit);
 }
 
-function toggleNumpadLayout() {
-  setNumpadLayout(getNumpadLayout() === "standard" ? "inverted" : "standard");
-  buildNumpad();
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   initMainMenu();
   buildNumpad();
   bindKeyboardControls();
-  el("numpad-flip-btn").addEventListener("click", toggleNumpadLayout);
   el("open-highscores-btn").addEventListener("click", openHighScores);
   el("leave-battle-btn").addEventListener("click", leaveBattle);
   document.querySelectorAll("[data-back-realm]").forEach(b => b.addEventListener("click", () => { renderRealmScreen(); showScreen("screen-realm"); }));

@@ -682,6 +682,10 @@ const GENERATORS = {
       quotient = randInt(2, 12);
       dividend = divisor * quotient * 10;
     } while (dividend % 100 !== 0);
+    // dividend was built as divisor * quotient * 10, so the true answer
+    // is quotient * 10 (e.g. 600 \u00f7 3 = 200, not 20). Previously this
+    // returned the bare `quotient`, which was wrong by a factor of 10
+    // any time the dividend was a "clean" multiple of ten/hundred.
     return buildQ(dividend, divisor, "\u00f7", quotient * 10);
   },
   div_mult100_by10() {
