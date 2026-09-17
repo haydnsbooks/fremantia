@@ -21,6 +21,41 @@ function showScreen(id) {
   el(id).classList.add("active");
   updateCombatStatusBar();
   layoutHeaders();
+  applyUpdateBannerVisibility();
+}
+
+// ---------------------------------------------------------------------------
+// VERSION CHECK — catches a tab that's been left open since before the last
+// deploy. Browser/CDN caching can never fix this case on its own, because an
+// already-open tab makes no network request at all until something explicitly
+// asks it to. So instead: re-fetch version.js itself (bypassing cache) every
+// so often and compare it against the APP_VERSION this tab loaded with. If
+// they differ, prompt for a reload rather than forcing one — and never while
+// a battle is actually in progress, so nobody loses an in-progress attempt.
+// ---------------------------------------------------------------------------
+const BATTLE_SCREEN_IDS = ["screen-battle", "screen-combat-battle"];
+let updateAvailable = false;
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(`version.js?_=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const text = await res.text();
+    const match = text.match(/APP_VERSION\s*=\s*["']([^"']+)["']/);
+    if (!match) return;
+    if (match[1] !== APP_VERSION) {
+      updateAvailable = true;
+      applyUpdateBannerVisibility();
+    }
+  } catch (e) { /* offline, or the request was blocked — just try again next time */ }
+}
+
+function applyUpdateBannerVisibility() {
+  const banner = el("update-banner");
+  if (!banner) return;
+  const activeScreen = document.querySelector(".screen.active");
+  const inBattle = activeScreen && BATTLE_SCREEN_IDS.includes(activeScreen.id);
+  banner.style.display = (updateAvailable && !inBattle) ? "flex" : "none";
 }
 
 // Combat status bar — Combat Level, current-level XP progress, and Fremantium,
@@ -1415,6 +1450,22 @@ document.addEventListener("DOMContentLoaded", () => {
   buildNumpad();
   bindKeyboardControls();
   window.addEventListener("resize", layoutHeaders);
+
+  // Version check: once shortly after load, again whenever the tab comes
+  // back into the foreground (the main way a student re-opens an iPad that
+  // was left sitting on yesterday's page), and periodically in between in
+  // case a tab is just left open and active for a long stretch.
+  setTimeout(checkForUpdate, 4000);
+  setInterval(checkForUpdate, 3 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkForUpdate();
+  });
+  el("update-reload-btn").addEventListener("click", () => location.reload());
+  el("update-later-btn").addEventListener("click", () => {
+    updateAvailable = false;
+    applyUpdateBannerVisibility();
+  });
+
   el("open-highscores-btn").addEventListener("click", openHighScores);
   el("leave-battle-btn").addEventListener("click", leaveBattle);
   document.querySelectorAll("[data-back-realm]").forEach(b => b.addEventListener("click", () => { renderRealmScreen(); showScreen("screen-realm"); }));

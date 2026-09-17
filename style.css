@@ -675,6 +675,26 @@ body.has-hero-header .screen { padding-top: var(--app-header-height, 40px); }
 .combat-status-xp-fill { height: 100%; width: 0%; background: var(--combat-accent); }
 .combat-status-fremantium { color: var(--hub-gold); font-weight: 700; white-space: nowrap; }
 
+/* ---------------- Update-available banner ---------------- */
+.update-banner {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: rgba(20,16,32,0.94);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255,255,255,0.15);
+  font-size: 0.85rem;
+}
+.update-banner-actions { display: flex; gap: 10px; }
+.update-banner .btn { padding: 8px 16px; font-size: 0.82rem; }
+
 /* ---------------- Header dropdowns (weapons / account / travel) ----------
    Positioned dynamically via JS (positionHeaderDropdown) so each dropdown
    opens directly below the button that triggered it, rather than pinned
