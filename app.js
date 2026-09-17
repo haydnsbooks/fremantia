@@ -21,20 +21,28 @@ function showScreen(id) {
   el(id).classList.add("active");
   updateCombatStatusBar();
   layoutHeaders();
-  applyUpdateBannerVisibility();
+  applyUpdateGate();
 }
 
 // ---------------------------------------------------------------------------
 // VERSION CHECK — catches a tab that's been left open since before the last
-// deploy. Browser/CDN caching can never fix this case on its own, because an
-// already-open tab makes no network request at all until something explicitly
-// asks it to. So instead: re-fetch version.js itself (bypassing cache) every
-// so often and compare it against the APP_VERSION this tab loaded with. If
-// they differ, prompt for a reload rather than forcing one — and never while
-// a battle is actually in progress, so nobody loses an in-progress attempt.
+// deploy (or that loaded a stale cached copy of index.html itself). Browser/
+// CDN caching can never fix this on its own, since an already-open tab makes
+// no network request at all until something explicitly asks it to. So
+// instead: re-fetch version.js itself (bypassing cache) every so often and
+// compare it against the APP_VERSION this tab loaded with.
+//
+// Once a mismatch is found, playing is blocked with a non-dismissible modal
+// until the page is reloaded — students can't keep going on an old build.
+// The one exception is a battle already in progress: the block is deferred
+// until that specific attempt finishes (success or fail), so a deploy never
+// unfairly costs someone a fight they were already partway through. The
+// instant they leave the battle screen, though, they're blocked before they
+// can continue to the next stage or navigate anywhere else.
 // ---------------------------------------------------------------------------
 const BATTLE_SCREEN_IDS = ["screen-battle", "screen-combat-battle"];
 let updateAvailable = false;
+let updateOverlayShown = false;
 
 async function checkForUpdate() {
   try {
@@ -45,17 +53,35 @@ async function checkForUpdate() {
     if (!match) return;
     if (match[1] !== APP_VERSION) {
       updateAvailable = true;
-      applyUpdateBannerVisibility();
+      applyUpdateGate();
     }
   } catch (e) { /* offline, or the request was blocked — just try again next time */ }
 }
 
-function applyUpdateBannerVisibility() {
-  const banner = el("update-banner");
-  if (!banner) return;
+// Shows the blocking "please reload" modal if an update is known to be
+// available and the player isn't mid-battle. Safe to call repeatedly.
+function applyUpdateGate() {
+  if (!updateAvailable || updateOverlayShown) return;
   const activeScreen = document.querySelector(".screen.active");
   const inBattle = activeScreen && BATTLE_SCREEN_IDS.includes(activeScreen.id);
-  banner.style.display = (updateAvailable && !inBattle) ? "flex" : "none";
+  if (!inBattle) showUpdateRequiredOverlay();
+}
+
+function showUpdateRequiredOverlay() {
+  if (updateOverlayShown) return;
+  updateOverlayShown = true;
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-icon">🔄</div>
+      <div class="modal-title">Update Required</div>
+      <div class="modal-body">A new version of Fremantia has been released.<br><br>
+             Please reload to keep playing — nothing you've already earned will be lost.</div>
+      <button class="btn big" id="update-reload-btn" style="width:100%;">Reload Now</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#update-reload-btn").addEventListener("click", () => location.reload());
 }
 
 // Combat status bar — Combat Level, current-level XP progress, and Fremantium,
@@ -1459,11 +1485,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(checkForUpdate, 3 * 60 * 1000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") checkForUpdate();
-  });
-  el("update-reload-btn").addEventListener("click", () => location.reload());
-  el("update-later-btn").addEventListener("click", () => {
-    updateAvailable = false;
-    applyUpdateBannerVisibility();
   });
 
   el("open-highscores-btn").addEventListener("click", openHighScores);
