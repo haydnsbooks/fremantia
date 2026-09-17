@@ -19,6 +19,43 @@ function el(id) { return document.getElementById(id); }
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   el(id).classList.add("active");
+  updateCombatStatusBar();
+  layoutHeaders();
+}
+
+// Combat status bar — Combat Level, current-level XP progress, and Fremantium,
+// shown as a second row below the hero header on every screen once the
+// player has unlocked the Combat Realm (not just while inside it).
+function updateCombatStatusBar() {
+  const bar = el("combat-status-bar");
+  if (!HERO || !STATE || !STATE.combat || !isCombatRealmUnlocked()) {
+    bar.style.display = "none";
+    return;
+  }
+  bar.style.display = "flex";
+  const progress = getCombatXpProgress();
+  el("combat-status-level").textContent = progress.isMax
+    ? `⚔️ Combat Lvl ${progress.level} · MAX`
+    : `⚔️ Combat Lvl ${progress.level}`;
+  const xpIntoLevel = progress.xp - progress.atLevel;
+  const xpSpan = progress.isMax ? 1 : (progress.next - progress.atLevel);
+  el("combat-status-xp-fill").style.width = Math.min(100, (xpIntoLevel / xpSpan) * 100) + "%";
+  el("combat-status-fremantium").textContent = `💰 ${STATE.combat.fremantium}`;
+}
+
+// Measures the fixed header bar(s) actually on screen and pushes the result
+// into --app-header-height so screen content never sits under them. Needed
+// because the hero header can wrap to two lines on narrow iPad widths, and
+// the combat status bar is only sometimes present — a hard-coded padding
+// value can't track both at once.
+function layoutHeaders() {
+  const heroHeader = el("hero-header");
+  const combatBar = el("combat-status-bar");
+  const heroHeight = heroHeader.style.display !== "none" ? heroHeader.offsetHeight : 0;
+  const combatVisible = combatBar.style.display !== "none";
+  if (combatVisible) combatBar.style.top = heroHeight + "px";
+  const totalHeight = heroHeight + (combatVisible ? combatBar.offsetHeight : 0);
+  document.documentElement.style.setProperty("--app-header-height", (totalHeight || 40) + "px");
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +447,14 @@ function renderFremantia() {
   fifth.innerHTML = unlocked5
     ? `<h3>🌀 A New Portal Has Appeared</h3><div class="realm-meta">All four realm orbs are united. A fifth adventure awaits — coming soon.</div>`
     : `<h3>🌀 ??? Portal</h3><div class="realm-meta">Collect all four realm orbs to reveal this portal.</div>`;
+
+  const combatEl = el("combat-portal");
+  const combatAvailable = isCombatRealmUnlocked();
+  combatEl.className = "fifth-portal combat-portal" + (combatAvailable ? " available" : " locked");
+  combatEl.innerHTML = combatAvailable
+    ? `<h3>⚔️ Combat Portal</h3><div class="realm-meta">Monsters fight back here. Tap to enter the Combat Realm.</div>`
+    : `<h3>⚔️ ??? Combat Portal</h3><div class="realm-meta">Clear one world in each of the four realms to unlock.</div>`;
+  combatEl.onclick = () => { if (combatAvailable) openCombatRealm(); };
 }
 
 // The player is allowed to see/tap every realm portal from the start, but
@@ -621,6 +666,10 @@ function startBattle(realmId, worldId, stageId) {
     question: null,
     bossDefeated: false,
     finished: false,
+    // Timestamps of every answer submitted (correct or wrong) this attempt —
+    // used to decide whether the attempt was a "genuine" one for Combat
+    // Realm Energy purposes. See checkGenuineAttempt().
+    answerTimestamps: [],
     // Locked while a correct answer is being resolved (hit animation,
     // monster-defeat delay, etc.) so a fast double-tap on Attack can't
     // register a second hit against the same question. Cleared as soon
@@ -755,15 +804,19 @@ function submitAnswer() {
   const correct = Math.abs(val - battle.question.answer) < 0.005;
   const display = el("answer-display");
 
+  battle.answerTimestamps.push(Date.now());
+
   if (correct) {
     battle.locked = true;
     display.classList.add("correct");
+    SFX.correctAnswer();
     applyHit();
   } else {
     display.classList.add("wrong");
     setTimeout(() => display.classList.remove("wrong"), 350);
     battle.inputBuffer = "";
     setTimeout(updateAnswerDisplay, 200);
+    SFX.incorrectAnswer();
   }
 }
 
@@ -781,6 +834,7 @@ function applyHit() {
 
   if (m.hitsRemaining <= 0) {
     sprite.classList.add("defeated");
+    SFX.monsterClear();
     const wasBoss = m.role === "boss";
     setTimeout(() => {
       if (wasBoss) {
@@ -800,10 +854,24 @@ function applyHit() {
   }
 }
 
+// A "genuine" 60-second attempt: enough real answers, spaced out enough to
+// rule out idle-then-spam farming. See combat_realm_design.md §2.
+function checkGenuineAttempt(b) {
+  const times = b.answerTimestamps || [];
+  if (times.length < COMBAT_CONFIG.MIN_ANSWERS_FOR_ENERGY) return false;
+  for (let i = 1; i < times.length; i++) {
+    if (times[i] - times[i - 1] < COMBAT_CONFIG.MIN_SECONDS_BETWEEN_ANSWERS * 1000) return false;
+  }
+  return true;
+}
+
 function finishBattle(success) {
   if (!battle || battle.finished) return;
   battle.finished = true;
   clearInterval(battle.timerHandle);
+
+  // Combat Realm Energy — independent of whether the stage itself was won.
+  battle.earnedEnergy = checkGenuineAttempt(battle) && awardEnergyForAttempt();
 
   if (success) {
     const result = completeStage(battle.realmId, battle.worldId, battle.stageId);
@@ -833,7 +901,8 @@ function showSuccessScreen(result) {
   const world = getWorld(battle.realmId, battle.worldId);
   el("success-body").innerHTML =
     `You escaped with the shard from <b>${stage.bossName}</b>!<br>` +
-    `Boss shard collected for ${world.worldName}.`;
+    `Boss shard collected for ${world.worldName}.` +
+    (battle.earnedEnergy ? `<br><br>⚡ +1 Combat Realm Energy earned!` : "");
   showScreen("screen-success");
 
   const stages = world.stages;
@@ -905,6 +974,10 @@ function activateChoice(row) {
 }
 
 function showFailScreen() {
+  SFX.battleFailed();
+  const body = el("screen-fail").querySelector(".result-body");
+  const base = "The portal began sealing shut, and your hero had to flee back through it before the fight could be finished. Nothing you've already earned is lost — but this stage needs another attempt.";
+  body.innerHTML = base + (battle.earnedEnergy ? `<br><br>⚡ +1 Combat Realm Energy earned for the real effort!` : "");
   showScreen("screen-fail");
   el("fail-retry-btn").onclick = () => openPortalIntro(battle.realmId, battle.worldId, battle.stageId);
   el("fail-back-btn").onclick = () => {
@@ -925,7 +998,8 @@ function runModalQueue(result, onDone) {
       title: "World Key Created!",
       body: `You collected every shard in <b>${world.worldName}</b>.<br>The <b>${world.worldName} Key</b> has been forged automatically.<br><br>` +
             `Your <b>${getWeaponName(realmId)}</b> leveled up!<br>Damage: ${result.newWeaponDamage - CONFIG.DAMAGE_PER_LEVEL} → <b>${result.newWeaponDamage}</b>` +
-            (result.nextWorldUnlocked ? `<br><br>The portal to <b>${getWorld(realmId, result.nextWorldUnlocked).worldName}</b> has unlocked!` : "")
+            (result.nextWorldUnlocked ? `<br><br>The portal to <b>${getWorld(realmId, result.nextWorldUnlocked).worldName}</b> has unlocked!` : ""),
+      sound: "keyEarned"
     });
   }
   if (result.weaponDropped) {
@@ -959,6 +1033,7 @@ function runModalQueue(result, onDone) {
 function showNextModal(queue, i, onDone) {
   if (i >= queue.length) { onDone(); return; }
   const m = queue[i];
+  if (m.sound && SFX[m.sound]) SFX[m.sound]();
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
@@ -999,15 +1074,372 @@ function buildNumpad() {
   pad.appendChild(submit);
 }
 
+// ============================================================================
+// COMBAT REALM — optional side-game. Reads combatData.js (COMBAT_CONFIG,
+// COMBAT_MONSTERS, SHOP_ITEMS) and the STATE.combat helpers in gameState.js.
+// Never touches Hero Level, World/Realm progression, or main-game weapon
+// levels — only reads them (see combat_realm_design.md §7).
+// ============================================================================
+let combatBattle = null; // active live-battle state (separate from `battle`)
+let combatShopTab = "pets";
+
+async function openCombatRealm() {
+  if (!STATE.combat.firstEntrySeen) {
+    STATE.combat.firstEntrySeen = true;
+    saveState();
+    await showDialog({
+      icon: "⚔️",
+      title: "The Combat Realm",
+      body: `Here, monsters fight back.<br><br>
+             Defeat them to earn <b>Combat XP</b> (which levels up your combat attributes) and <b>Fremantium</b> (currency you can spend in the Shop on pets and trophies).<br><br>
+             <b>Battles:</b> choose a weapon, then watch your hero and the monster trade blows automatically. Your <b>Attack</b>, <b>Attack Speed</b>, <b>Vitality</b> and <b>Defence</b> all affect how the fight goes.<br><br>
+             <b>Energy:</b> every real 60-second fluency attempt in the main game earns you 1 Energy (up to 10). Each battle costs 5 Energy — so keep practising your maths to keep fighting!<br><br>
+             <b>Elements:</b> each monster has an element, and each weapon is strong against one element and weak against another — match them well.`,
+      buttons: [{ label: "Let's Fight!", value: true, primary: true }]
+    });
+  }
+  renderCombatHub();
+  showScreen("screen-combat-hub");
+}
+
+function renderCombatHub() {
+  const energy = getEnergy();
+  const unlimited = isUnlimitedEnergyAccount();
+  el("combat-energy-label").textContent = unlimited ? `∞ / ∞ (test account)` : `${energy} / ${COMBAT_CONFIG.ENERGY_CAP}`;
+  const pips = el("combat-energy-pips");
+  pips.innerHTML = "";
+  for (let i = 0; i < COMBAT_CONFIG.ENERGY_CAP; i++) {
+    const pip = document.createElement("div");
+    pip.className = "energy-pip" + ((unlimited || i < energy) ? " filled" : "");
+    pips.appendChild(pip);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MONSTER SELECT
+// ---------------------------------------------------------------------------
+function renderCombatMonsterSelect() {
+  const list = el("combat-monster-list");
+  list.innerHTML = "";
+  const highest = highestUnlockedMonster();
+  COMBAT_MONSTERS.forEach(m => {
+    const unlocked = isMonsterUnlocked(m.id);
+    const card = document.createElement("div");
+    card.className = "combat-monster-card" + (unlocked ? "" : " locked") + (m.isFinalBoss ? " boss" : "");
+    card.innerHTML = `
+      <div class="combat-monster-icon">${unlocked ? COMBAT_ELEMENT_ICON[m.element] : "🔒"}</div>
+      <div class="combat-monster-info">
+        <div class="name">${m.isFinalBoss ? "👑 " : ""}${unlocked ? m.name : "???"}</div>
+        <div class="sub">${unlocked
+          ? `${m.element} · HP ${m.hp} · ${m.xpReward} XP · ${m.fremantiumReward} Fremantium`
+          : `Defeat Monster ${highest} first`}</div>
+      </div>
+    `;
+    if (unlocked) card.addEventListener("click", () => openCombatWeaponSelect(m.id));
+    list.appendChild(card);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// WEAPON SELECT
+// ---------------------------------------------------------------------------
+function openCombatWeaponSelect(monsterId) {
+  if (!canAffordBattle()) {
+    showDialog({
+      icon: "⚡", title: "Not Enough Energy",
+      body: `You need ${COMBAT_CONFIG.ENERGY_COST_PER_BATTLE} Energy to fight. Complete more real 60-second fluency attempts to recharge.`,
+      buttons: [{ label: "OK", value: true, primary: true }]
+    });
+    return;
+  }
+  const monster = getCombatMonster(monsterId);
+  el("combat-weapon-select-title").textContent = `Fight ${monster.name}`;
+  el("combat-weapon-select-sub").textContent = `${monster.element} element — choose your weapon wisely`;
+
+  const list = el("combat-weapon-list");
+  list.innerHTML = "";
+  const weapons = ownedCombatWeapons();
+  weapons.forEach(w => {
+    const mult = typeMultiplier(w.realmId, monster.element);
+    const badge = mult === 2 ? `<span class="badge strong">2x Strong</span>`
+      : mult === 0.5 ? `<span class="badge weak">0.5x Weak</span>`
+      : `<span class="badge">1x Neutral</span>`;
+    const card = document.createElement("div");
+    card.className = "combat-weapon-card";
+    card.innerHTML = `
+      <div class="combat-monster-icon">${COMBAT_ELEMENT_ICON[w.realmId]}</div>
+      <div class="combat-monster-info">
+        <div class="name">${w.name}</div>
+        <div class="sub">Lv ${w.level} · ${w.damage} dmg</div>
+      </div>
+      ${badge}
+    `;
+    card.addEventListener("click", () => startCombatBattle(monsterId, w.realmId));
+    list.appendChild(card);
+  });
+  showScreen("screen-combat-weapon-select");
+}
+
+// ---------------------------------------------------------------------------
+// LIVE BATTLE — real-time auto-attack loop, ticked every 100ms. Damage and
+// timing come from computeBattleParams() in combatData.js.
+// ---------------------------------------------------------------------------
+function startCombatBattle(monsterId, weaponRealmId) {
+  const monster = getCombatMonster(monsterId);
+  const weapon = ownedCombatWeapons().find(w => w.realmId === weaponRealmId);
+  if (!spendEnergyForBattle()) {
+    showDialog({ icon: "⚡", title: "Not Enough Energy", body: `You need ${COMBAT_CONFIG.ENERGY_COST_PER_BATTLE} Energy to fight.`, buttons: [{ label: "OK", value: true, primary: true }] });
+    return;
+  }
+
+  const params = computeBattleParams(weaponRealmId, weapon.damage, STATE.combat.attributeLevels, monster);
+
+  combatBattle = {
+    monster, weapon, params,
+    monsterHp: monster.hp,
+    playerHp: params.playerMaxHp,
+    playerMaxHp: params.playerMaxHp,
+    playerElapsed: 0,
+    monsterElapsed: 0,
+    finished: false
+  };
+
+  el("combat-battle-weapon-chip").innerHTML = `⚔️ ${weapon.name}`;
+  el("combat-battle-monster-chip").innerHTML = `${monster.isFinalBoss ? "👑 " : ""}${monster.name}`;
+  el("combat-battle-type-chip").innerHTML =
+    params.typeMultiplier === 2 ? "2x Strong!" : params.typeMultiplier === 0.5 ? "0.5x Weak" : "1x Neutral";
+  el("combat-monster-name-label").textContent = monster.name;
+  const sprite = el("combat-monster-sprite");
+  sprite.className = "monster-sprite" + (monster.isFinalBoss ? " boss-sprite" : "");
+  sprite.textContent = COMBAT_ELEMENT_ICON[monster.element];
+  el("combat-log").textContent = "The battle begins!";
+  updateCombatBattleBars();
+
+  showScreen("screen-combat-battle");
+
+  clearInterval(combatBattle.tickHandle);
+  combatBattle.tickHandle = setInterval(combatBattleTick, 100);
+}
+
+function updateCombatBattleBars() {
+  const b = combatBattle;
+  el("combat-player-hp-fill").style.width = Math.max(0, (b.playerHp / b.playerMaxHp) * 100) + "%";
+  el("combat-player-hp-label").textContent = `HP: ${Math.max(0, Math.ceil(b.playerHp))} / ${b.playerMaxHp}`;
+  el("combat-monster-hp-fill").style.width = Math.max(0, (b.monsterHp / b.monster.hp) * 100) + "%";
+  el("combat-monster-hp-label").textContent = `HP: ${Math.max(0, Math.ceil(b.monsterHp))} / ${b.monster.hp}`;
+}
+
+function combatBattleTick() {
+  const b = combatBattle;
+  if (!b || b.finished) return;
+  b.playerElapsed += 100;
+  b.monsterElapsed += 100;
+
+  if (b.playerElapsed >= b.params.playerAttackIntervalMs) {
+    b.playerElapsed = 0;
+    b.monsterHp -= b.params.playerDamagePerHit;
+    el("combat-log").textContent = `Your hero hits for ${b.params.playerDamagePerHit}!`;
+    SFX.attackOnMonster();
+    const sprite = el("combat-monster-sprite");
+    sprite.classList.remove("hit"); void sprite.offsetWidth; sprite.classList.add("hit");
+  }
+  if (b.monsterHp > 0 && b.monsterElapsed >= b.params.monsterAttackIntervalMs) {
+    b.monsterElapsed = 0;
+    b.playerHp -= b.params.monsterDamagePerHit;
+    SFX.monsterAttackOnHero();
+  }
+
+  updateCombatBattleBars();
+
+  if (b.monsterHp <= 0) { finishCombatBattle(true); return; }
+  if (b.playerHp <= 0) { finishCombatBattle(false); return; }
+}
+
+function fleeCombatBattle() {
+  if (!combatBattle || combatBattle.finished) return;
+  combatBattle.finished = true;
+  clearInterval(combatBattle.tickHandle);
+  renderCombatMonsterSelect();
+  showScreen("screen-combat-select");
+}
+
+function finishCombatBattle(won) {
+  const b = combatBattle;
+  if (!b || b.finished) return;
+  b.finished = true;
+  clearInterval(b.tickHandle);
+
+  if (won) {
+    SFX.combatMonsterClear();
+    const result = recordMonsterVictory(b.monster.id);
+    el("combat-result-icon").textContent = "🏆";
+    el("combat-result-title").textContent = "Victory!";
+    let body = `${b.monster.name} defeated! You earned <b>${result.xpGained} Combat XP</b> and <b>${result.fremantiumGained} Fremantium</b>.`;
+    if (result.leveledUp) body += `<br><br>⭐ Combat Level Up! You're now level ${result.combatLevelAfter} — spend your new attribute point(s) in Attributes.`;
+    if (result.nextUnlocked) body += `<br><br>A new monster is available to challenge.`;
+    if (result.epicJustUnlocked) body += `<br><br>🌟 <b>A Mystery Revealed!</b> You've defeated every Realm Boss — the Epic pet and trophy are now in the Shop!`;
+    el("combat-result-body").innerHTML = body;
+  } else {
+    SFX.combatMonsterLoss();
+    el("combat-result-icon").textContent = "💥";
+    el("combat-result-title").textContent = "Defeated...";
+    el("combat-result-body").innerHTML =
+      `Your hero was overwhelmed by ${b.monster.name}. No Energy or existing progress is lost beyond this attempt — try levelling up your attributes or weapon before trying again.`;
+  }
+  showScreen("screen-combat-result");
+  el("combat-result-continue-btn").onclick = () => { renderCombatMonsterSelect(); showScreen("screen-combat-select"); };
+  el("combat-result-hub-btn").onclick = () => { renderCombatHub(); showScreen("screen-combat-hub"); };
+  setChoice(el("combat-result-choice-row"), 0);
+}
+
+// ---------------------------------------------------------------------------
+// ATTRIBUTES
+// ---------------------------------------------------------------------------
+function renderCombatAttributes() {
+  const progress = getCombatXpProgress();
+  el("combat-attr-level-label").textContent = progress.isMax
+    ? `Combat Level ${progress.level} · MAX`
+    : `Combat Level ${progress.level} · ${getAttributePointsAvailable()} point(s) to spend`;
+
+  const xpIntoLevel = progress.xp - progress.atLevel;
+  const xpSpan = progress.isMax ? 1 : (progress.next - progress.atLevel);
+  el("combat-xp-bar-fill").style.width = Math.min(100, (xpIntoLevel / xpSpan) * 100) + "%";
+  el("combat-xp-bar-label").textContent = progress.isMax
+    ? `${progress.xp} Combat XP (max level reached)`
+    : `${xpIntoLevel} / ${xpSpan} XP to next level`;
+
+  const list = el("combat-attr-list");
+  list.innerHTML = "";
+  const points = getAttributePointsAvailable();
+  Object.values(COMBAT_CONFIG.ATTRIBUTES).forEach(def => {
+    const level = getAttributeLevel(def.key);
+    const maxed = level >= def.levelsToMax;
+    const row = document.createElement("div");
+    row.className = "combat-attr-row";
+    row.innerHTML = `
+      <div class="combat-attr-info">
+        <div class="name">${def.label}</div>
+        <div class="value">${formatAttributeValue(def.key, level)} · level ${level}/${def.levelsToMax}</div>
+      </div>
+      <button class="btn"${(points <= 0 || maxed) ? " disabled" : ""}>+</button>
+    `;
+    row.querySelector("button").addEventListener("click", () => {
+      if (spendAttributePoint(def.key)) { SFX.attributeLevelUp(); renderCombatAttributes(); }
+    });
+    list.appendChild(row);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SHOP / PETS / TROPHIES
+// ---------------------------------------------------------------------------
+function renderCombatShop() {
+  el("combat-shop-currency-label").textContent = `💰 ${STATE.combat.fremantium} Fremantium`;
+  el("combat-shop-tab-pets").classList.toggle("active", combatShopTab === "pets");
+  el("combat-shop-tab-trophies").classList.toggle("active", combatShopTab === "trophies");
+
+  const items = SHOP_ITEMS[combatShopTab];
+  const grid = el("combat-shop-grid");
+  grid.innerHTML = "";
+  items.forEach(item => {
+    const owned = ownsItem(item.id);
+    const mysteryLocked = item.mystery && !isEpicUnlocked();
+    const card = document.createElement("div");
+    card.className = "combat-shop-card" + (owned ? " owned" : "") + (mysteryLocked ? " mystery" : "");
+
+    if (mysteryLocked) {
+      card.innerHTML = `
+        <div class="item-icon">❓</div>
+        <div class="item-name">???</div>
+        <div class="item-flavor">A legendary reward awaits the hero who conquers every element.<br><br>Defeat all four Realm Bosses to reveal this item.</div>
+      `;
+    } else {
+      const price = shopItemPrice(item);
+      card.innerHTML = `
+        <div class="item-icon">${item.icon || "❔"}</div>
+        <div class="item-name">${item.name}</div>
+        <div class="item-flavor">${item.flavor}</div>
+        <div class="item-price">${owned ? "Owned" : `💰 ${price} Fremantium`}</div>
+        <button class="btn ${owned ? "secondary" : ""}" style="width:100%;">${owned ? "Sell (50%)" : "Buy"}</button>
+      `;
+      card.querySelector("button").addEventListener("click", () => {
+        if (owned) {
+          if (sellItem(item.id).ok) { renderCombatShop(); updateCombatStatusBar(); }
+        } else {
+          const res = purchaseItem(item.id);
+          if (res.ok) { SFX.shopPurchase(); renderCombatShop(); updateCombatStatusBar(); }
+          else showDialog({ icon: "🚫", title: "Can't Buy That Yet", body: res.reason, buttons: [{ label: "OK", value: true, primary: true }] });
+        }
+      });
+    }
+    grid.appendChild(card);
+  });
+}
+
+function renderCombatPets() {
+  const grid = el("combat-pets-grid");
+  grid.innerHTML = "";
+  const owned = ownedPets();
+  if (!owned.length) { grid.innerHTML = `<div class="combat-empty-note">No pets yet — visit the Shop!</div>`; return; }
+  owned.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "combat-shop-card owned pet-card";
+    card.title = "Tap to pet!";
+    card.innerHTML = `<div class="item-icon">${item.icon || "🐾"}</div><div class="item-name">${item.name}</div><div class="item-flavor">${item.flavor}</div>`;
+    card.addEventListener("click", () => {
+      SFX.petTap();
+      const icon = card.querySelector(".item-icon");
+      icon.classList.remove("pet-bounce");
+      void icon.offsetWidth;
+      icon.classList.add("pet-bounce");
+    });
+    grid.appendChild(card);
+  });
+}
+
+function renderCombatTrophies() {
+  const grid = el("combat-trophies-grid");
+  grid.innerHTML = "";
+  const owned = ownedTrophies();
+  if (!owned.length) { grid.innerHTML = `<div class="combat-empty-note">No trophies yet — visit the Shop!</div>`; return; }
+  owned.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "combat-shop-card owned";
+    card.innerHTML = `<div class="item-icon">${item.icon || "🏆"}</div><div class="item-name">${item.name}</div><div class="item-flavor">${item.flavor}</div>`;
+    grid.appendChild(card);
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initMainMenu();
   buildNumpad();
   bindKeyboardControls();
+  window.addEventListener("resize", layoutHeaders);
   el("open-highscores-btn").addEventListener("click", openHighScores);
   el("leave-battle-btn").addEventListener("click", leaveBattle);
   document.querySelectorAll("[data-back-realm]").forEach(b => b.addEventListener("click", () => { renderRealmScreen(); showScreen("screen-realm"); }));
   document.querySelectorAll("[data-back-fremantia]").forEach(b => b.addEventListener("click", () => { renderFremantia(); showScreen("screen-fremantia"); }));
   document.querySelectorAll("[data-back-world]").forEach(b => b.addEventListener("click", () => { renderWorldScreen(); showScreen("screen-world"); }));
+  document.querySelectorAll("[data-back-combat-hub]").forEach(b => b.addEventListener("click", () => { renderCombatHub(); showScreen("screen-combat-hub"); }));
+  document.querySelectorAll("[data-back-combat-select]").forEach(b => b.addEventListener("click", () => { renderCombatMonsterSelect(); showScreen("screen-combat-select"); }));
+
+  // ---- Combat Realm ----
+  el("combat-nav-battle").addEventListener("click", () => { renderCombatMonsterSelect(); showScreen("screen-combat-select"); });
+  el("combat-nav-attributes").addEventListener("click", () => { renderCombatAttributes(); showScreen("screen-combat-attributes"); });
+  el("combat-nav-shop").addEventListener("click", () => { combatShopTab = "pets"; renderCombatShop(); showScreen("screen-combat-shop"); });
+  el("combat-nav-pets").addEventListener("click", () => { renderCombatPets(); showScreen("screen-combat-pets"); });
+  el("combat-nav-trophies").addEventListener("click", () => { renderCombatTrophies(); showScreen("screen-combat-trophies"); });
+  el("combat-shop-tab-pets").addEventListener("click", () => { combatShopTab = "pets"; renderCombatShop(); });
+  el("combat-shop-tab-trophies").addEventListener("click", () => { combatShopTab = "trophies"; renderCombatShop(); });
+  el("combat-leave-battle-btn").addEventListener("click", fleeCombatBattle);
+  el("combat-reset-attrs-btn").addEventListener("click", async () => {
+    const confirmed = await showDialog({
+      icon: "♻️", title: "Reset Attributes?",
+      body: "This refunds every attribute point you've spent so you can respend them. Your Combat Level and XP are not affected.",
+      buttons: [{ label: "Cancel", value: false }, { label: "Reset", value: true, primary: true }]
+    });
+    if (confirmed) { resetAttributePoints(); renderCombatAttributes(); }
+  });
 
   el("hero-header-rank").addEventListener("click", showRankInfoDialog);
   el("hero-header-name").addEventListener("click", (e) => {

@@ -27,7 +27,24 @@ function freshState() {
     // realmId -> true once the "I can use my [weapon] here!" first-entry
     // dialogue has been shown for that realm (shown once, ever)
     weaponIntroSeen: {},
-    fifthRealmUnlocked: false
+    fifthRealmUnlocked: false,
+
+    // ------------------------------------------------------------------
+    // COMBAT REALM — separate progression layer. See combat_realm_design.md.
+    // Never touches Hero Level, World/Realm progression, or the main-game
+    // weapon levels above; only reads them.
+    // ------------------------------------------------------------------
+    combat: {
+      energy: 0,
+      combatXp: 0,
+      // levels spent per attribute (0..levelsToMax) — see combatData.js
+      attributeLevels: { attackSpeed: 0, attack: 0, vitality: 0, defence: 0 },
+      monsterProgress: 1, // highest monster unlocked (1-20); earlier ones stay fightable
+      bossesDefeated: {}, // monster id (17-20) -> true
+      fremantium: 0,
+      ownedItems: {}, // shop item id -> true
+      firstEntrySeen: false
+    }
   };
 }
 
@@ -69,6 +86,16 @@ async function loadStateForUser(username, remoteProgress) {
   const fresh = freshState();
   for (const k of Object.keys(fresh)) {
     if (!(k in STATE)) STATE[k] = fresh[k];
+  }
+  // combat is itself an object that gains fields over time (e.g. a save
+  // made before the Combat Realm existed, or before a later attribute was
+  // added) — backfill one level deep so older saves don't crash on missing
+  // sub-fields.
+  for (const k of Object.keys(fresh.combat)) {
+    if (!(k in STATE.combat)) STATE.combat[k] = fresh.combat[k];
+  }
+  for (const k of Object.keys(fresh.combat.attributeLevels)) {
+    if (!(k in STATE.combat.attributeLevels)) STATE.combat.attributeLevels[k] = 0;
   }
   cacheStateLocally(username);
   return { state: STATE, isFirstPlay };
@@ -265,4 +292,172 @@ function realmProgress(realmId) {
   const realm = getRealm(realmId);
   const done = realm.worlds.filter(w => STATE.completedWorlds[worldKey(realmId, w.worldId)]).length;
   return { done, total: realm.worlds.length };
+}
+
+// ============================================================================
+// COMBAT REALM — reads combatData.js (COMBAT_CONFIG, COMBAT_MONSTERS,
+// SHOP_ITEMS, etc.) plus STATE.combat. See combat_realm_design.md.
+// ============================================================================
+
+// Unlocked once the player has cleared one world in each of the four realms.
+function isCombatRealmUnlocked() {
+  return CONFIG.REALM_ORDER.every(r => realmProgress(r).done >= 1);
+}
+
+// ---- Energy ----------------------------------------------------------------
+// Dev/test account: username "123" gets unlimited Combat Realm Energy so the
+// combat system can be tested without grinding fluency attempts first. Does
+// not touch STATE.combat.energy itself, so nothing here affects real accounts
+// or needs undoing later — just remove isUnlimitedEnergyAccount()'s special
+// case when this test account is no longer needed.
+function isUnlimitedEnergyAccount() {
+  return !!(HERO && HERO.username && HERO.username.trim() === "123");
+}
+
+function getEnergy() {
+  return isUnlimitedEnergyAccount() ? COMBAT_CONFIG.ENERGY_CAP : STATE.combat.energy;
+}
+
+function canAffordBattle() {
+  return isUnlimitedEnergyAccount() || STATE.combat.energy >= COMBAT_CONFIG.ENERGY_COST_PER_BATTLE;
+}
+function spendEnergyForBattle() {
+  if (isUnlimitedEnergyAccount()) return true; // never actually spent
+  if (!canAffordBattle()) return false;
+  STATE.combat.energy -= COMBAT_CONFIG.ENERGY_COST_PER_BATTLE;
+  saveState();
+  return true;
+}
+// Called once per finished 60s fluency attempt (success OR fail) that passed
+// the "genuine attempt" check in app.js. Returns true if energy was actually
+// gained (false if already at cap).
+function awardEnergyForAttempt() {
+  if (STATE.combat.energy >= COMBAT_CONFIG.ENERGY_CAP) return false;
+  STATE.combat.energy = Math.min(COMBAT_CONFIG.ENERGY_CAP, STATE.combat.energy + 1);
+  saveState();
+  return true;
+}
+
+// ---- Combat level / attributes ---------------------------------------------
+function getCombatLevel() {
+  return combatLevelForXp(STATE.combat.combatXp);
+}
+function getCombatXpProgress() {
+  const level = getCombatLevel();
+  const xp = STATE.combat.combatXp;
+  const atLevel = xpForCombatLevel(level);
+  const next = level < COMBAT_CONFIG.MAX_COMBAT_LEVEL ? xpForCombatLevel(level + 1) : null;
+  return { level, xp, atLevel, next, isMax: next === null };
+}
+function getAttributePointsAvailable() {
+  const spent = Object.values(STATE.combat.attributeLevels).reduce((a, b) => a + b, 0);
+  return Math.max(0, (getCombatLevel() - 1) - spent);
+}
+function getAttributeLevel(key) {
+  return STATE.combat.attributeLevels[key] || 0;
+}
+function spendAttributePoint(key) {
+  const def = COMBAT_CONFIG.ATTRIBUTES[key];
+  if (!def) return false;
+  if (getAttributePointsAvailable() <= 0) return false;
+  if (getAttributeLevel(key) >= def.levelsToMax) return false;
+  STATE.combat.attributeLevels[key]++;
+  saveState();
+  return true;
+}
+function resetAttributePoints() {
+  STATE.combat.attributeLevels = { attackSpeed: 0, attack: 0, vitality: 0, defence: 0 };
+  saveState();
+}
+
+// ---- Monster ladder ----------------------------------------------------------
+function highestUnlockedMonster() { return STATE.combat.monsterProgress; }
+function isMonsterUnlocked(id) { return id <= STATE.combat.monsterProgress; }
+function allFinalBossesDefeated() {
+  return COMBAT_MONSTERS.filter(m => m.isFinalBoss).every(m => STATE.combat.bossesDefeated[m.id]);
+}
+
+// Call after a battle is won. Awards XP/Fremantium, unlocks the next monster
+// (only if this was the current frontier monster), tracks final-boss
+// defeats, and reports whether the Epic shop tier just unlocked.
+function recordMonsterVictory(monsterId) {
+  const monster = getCombatMonster(monsterId);
+  if (!monster) return null;
+
+  const beforeLevel = getCombatLevel();
+  const beforeAllBosses = allFinalBossesDefeated();
+
+  STATE.combat.combatXp += monster.xpReward;
+  STATE.combat.fremantium += monster.fremantiumReward;
+  if (monster.isFinalBoss) STATE.combat.bossesDefeated[monsterId] = true;
+
+  let nextUnlocked = null;
+  if (monsterId === STATE.combat.monsterProgress && monsterId < COMBAT_CONFIG.MONSTER_COUNT) {
+    STATE.combat.monsterProgress = monsterId + 1;
+    nextUnlocked = STATE.combat.monsterProgress;
+  }
+
+  const afterLevel = getCombatLevel();
+  const afterAllBosses = allFinalBossesDefeated();
+
+  saveState();
+  return {
+    xpGained: monster.xpReward,
+    fremantiumGained: monster.fremantiumReward,
+    leveledUp: afterLevel > beforeLevel,
+    combatLevelBefore: beforeLevel,
+    combatLevelAfter: afterLevel,
+    attributePointsGained: afterLevel - beforeLevel,
+    nextUnlocked,
+    epicJustUnlocked: afterAllBosses && !beforeAllBosses
+  };
+}
+
+// ---- Shop --------------------------------------------------------------------
+function isEpicUnlocked() { return allFinalBossesDefeated(); }
+function ownsItem(itemId) { return !!STATE.combat.ownedItems[itemId]; }
+
+function canPurchaseItem(itemId) {
+  const item = findShopItem(itemId);
+  if (!item) return { ok: false, reason: "Item not found." };
+  if (ownsItem(itemId)) return { ok: false, reason: "You already own this." };
+  if (item.mystery && !isEpicUnlocked()) {
+    return { ok: false, reason: "Defeat all four Realm Bosses in the Combat Realm to reveal this item." };
+  }
+  const price = shopItemPrice(item);
+  if (STATE.combat.fremantium < price) return { ok: false, reason: "Not enough Fremantium." };
+  return { ok: true, price };
+}
+function purchaseItem(itemId) {
+  const check = canPurchaseItem(itemId);
+  if (!check.ok) return check;
+  STATE.combat.fremantium -= check.price;
+  STATE.combat.ownedItems[itemId] = true;
+  saveState();
+  return { ok: true, price: check.price };
+}
+function sellItem(itemId) {
+  if (!ownsItem(itemId)) return { ok: false, reason: "You don't own this." };
+  const item = findShopItem(itemId);
+  const refund = Math.round(shopItemPrice(item) * 0.5);
+  delete STATE.combat.ownedItems[itemId];
+  STATE.combat.fremantium += refund;
+  saveState();
+  return { ok: true, refund };
+}
+function ownedPets() { return SHOP_ITEMS.pets.filter(i => ownsItem(i.id)); }
+function ownedTrophies() { return SHOP_ITEMS.trophies.filter(i => ownsItem(i.id)); }
+
+// ---- Weapons available for combat (any weapon the player has found, used
+// freely regardless of which realm it's "at home" in — a deliberate
+// Combat-Realm-only exception to the main game's realm-locked weapon rule) --
+function ownedCombatWeapons() {
+  return CONFIG.REALM_ORDER
+    .filter(realmId => getWeaponLevel(realmId) > 0)
+    .map(realmId => ({
+      realmId, // also doubles as the weapon's element for the type chart
+      name: getWeaponName(realmId),
+      level: getWeaponLevel(realmId),
+      damage: getWeaponDamage(realmId)
+    }));
 }

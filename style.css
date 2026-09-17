@@ -641,8 +641,39 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
   gap: 5px;
   white-space: nowrap;
 }
-/* push screen content below the fixed header when it's visible */
-body.has-hero-header .screen { padding-top: 40px; }
+/* push screen content below the fixed header(s) when visible — the exact
+   height is set on --app-header-height by layoutHeaders() in app.js, since
+   the hero-header can wrap to two lines on narrow iPad widths and the combat
+   status bar is only sometimes present. 40px is just the pre-JS fallback. */
+body.has-hero-header .screen { padding-top: var(--app-header-height, 40px); }
+
+/* ---------------- Combat status bar (persistent once Combat Realm unlocked) ----------------
+   A second row below the hero header, always visible on every screen once
+   the player has access to the Combat Realm — not just while inside it. */
+.combat-status-bar {
+  position: fixed;
+  left: 0; right: 0;
+  z-index: 39;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: rgba(232,105,95,0.16);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(232,105,95,0.35);
+  font-size: 0.78rem;
+  flex-wrap: wrap;
+}
+.combat-status-level { font-family: var(--font-display); color: var(--combat-glow); font-weight: 700; white-space: nowrap; }
+.combat-status-xp-track {
+  width: 110px; height: 8px; border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.combat-status-xp-fill { height: 100%; width: 0%; background: var(--combat-accent); }
+.combat-status-fremantium { color: var(--hub-gold); font-weight: 700; white-space: nowrap; }
 
 /* ---------------- Header dropdowns (weapons / account / travel) ----------
    Positioned dynamically via JS (positionHeaderDropdown) so each dropdown
@@ -755,3 +786,144 @@ body.has-hero-header .screen { padding-top: 40px; }
 }
 .highscore-name { flex: 1; font-weight: 600; }
 .highscore-level { font-size: 0.85rem; opacity: 0.8; }
+
+/* ============================================================================
+   COMBAT REALM
+   ============================================================================ */
+:root {
+  --combat-accent: #e8695f;
+  --combat-glow: #ffb199;
+}
+
+.combat-portal {
+  border-color: rgba(232,105,95,0.5);
+  background: rgba(232,105,95,0.06);
+  cursor: pointer;
+}
+.combat-portal.available {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--combat-accent);
+  background: radial-gradient(circle at 50% 0%, rgba(232,105,95,0.25), transparent 70%);
+  animation: pulseGlow 2.4s ease-in-out infinite;
+}
+.combat-portal.locked { cursor: default; }
+
+/* ---- Energy ---- */
+.energy-bar-wrap { max-width: 520px; margin: 0 auto 18px; text-align: center; }
+.energy-label { font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 6px; }
+.energy-pips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
+.energy-pip {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.energy-pip.filled { background: var(--combat-accent); border-color: var(--combat-accent); box-shadow: 0 0 8px rgba(232,105,95,0.6); }
+
+/* ---- Hub nav grid ---- */
+.combat-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding-bottom: 20px;
+}
+.combat-hub-btn { padding: 26px 10px; font-size: 1.05rem; line-height: 1.7; }
+
+/* ---- Monster select list ---- */
+.combat-monster-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; margin: 0 auto 20px; padding: 0 4px; }
+.combat-monster-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+}
+.combat-monster-card:active { transform: scale(0.98); }
+.combat-monster-card.locked { opacity: 0.4; cursor: default; }
+.combat-monster-card.locked:active { transform: none; }
+.combat-monster-card.boss { border-color: var(--combat-accent); background: rgba(232,105,95,0.12); }
+.combat-monster-icon { font-size: 1.8rem; }
+.combat-monster-info { flex: 1; min-width: 0; }
+.combat-monster-info .name { font-family: var(--font-display); font-size: 1.05rem; }
+.combat-monster-info .sub { font-size: 0.8rem; opacity: 0.75; }
+
+/* ---- Weapon select ---- */
+.combat-weapon-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; margin: 0 auto 20px; padding: 0 4px; }
+.combat-weapon-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+}
+.combat-weapon-card:active { transform: scale(0.98); }
+.combat-weapon-card .badge {
+  font-size: 0.75rem; padding: 3px 8px; border-radius: 20px;
+  background: rgba(255,255,255,0.12);
+}
+.combat-weapon-card .badge.strong { background: rgba(111,207,122,0.3); color: #d9ffdd; }
+.combat-weapon-card .badge.weak { background: rgba(224,104,104,0.3); color: #ffdede; }
+
+/* ---- Live battle ---- */
+.combat-vs-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 18px; max-width: 620px; margin: 20px auto; padding: 0 10px;
+}
+.combat-combatant { flex: 1; text-align: center; }
+.combat-combatant-label { font-family: var(--font-display); font-size: 1rem; margin-bottom: 8px; }
+.combat-vs-emoji { font-size: 1.6rem; opacity: 0.6; }
+.combat-log {
+  max-width: 560px; margin: 0 auto; padding: 10px 16px;
+  font-size: 0.85rem; opacity: 0.85; text-align: center; min-height: 1.4em;
+}
+
+/* ---- Attributes ---- */
+.combat-xp-bar-wrap { max-width: 560px; margin: 0 auto 18px; padding: 0 10px; }
+.combat-attr-list { display: flex; flex-direction: column; gap: 12px; max-width: 560px; margin: 0 auto 20px; padding: 0 10px; }
+.combat-attr-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.combat-attr-info { flex: 1; min-width: 0; }
+.combat-attr-info .name { font-family: var(--font-display); font-size: 1.05rem; }
+.combat-attr-info .value { font-size: 0.85rem; opacity: 0.8; }
+.combat-attr-row .btn { padding: 10px 16px; font-size: 1.2rem; min-width: 52px; }
+
+/* ---- Shop / Pets / Trophies ---- */
+.shop-tab-btn.active { background: var(--combat-accent); border-color: var(--combat-accent); color: #fff; }
+.combat-shop-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px; max-width: 720px; margin: 0 auto 24px; padding: 0 6px;
+}
+.combat-shop-card {
+  padding: 16px; border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.combat-shop-card .item-icon { font-size: 2.4rem; line-height: 1; text-align: center; }
+.combat-shop-card .item-name { font-family: var(--font-display); font-size: 1.05rem; }
+.combat-shop-card .item-flavor { font-size: 0.8rem; opacity: 0.75; line-height: 1.4; flex: 1; }
+.combat-shop-card .item-price { font-size: 0.9rem; color: var(--hub-gold); }
+.combat-shop-card.owned { border-color: var(--ok); }
+.combat-shop-card.mystery {
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,0.04), rgba(255,255,255,0.04) 10px, rgba(255,255,255,0.08) 10px, rgba(255,255,255,0.08) 20px);
+  text-align: center; align-items: center; justify-content: center;
+}
+.combat-shop-card.mystery .item-name { font-size: 2rem; }
+.combat-empty-note { text-align: center; opacity: 0.7; padding: 20px; grid-column: 1 / -1; }
+
+/* Pets can be tapped for a little reaction — cursor + bounce feedback. */
+.combat-shop-card.pet-card { cursor: pointer; touch-action: manipulation; }
+.combat-shop-card.pet-card:active { transform: scale(0.97); }
+@keyframes pet-bounce {
+  0%   { transform: scale(1) rotate(0deg); }
+  30%  { transform: scale(1.25) rotate(-6deg); }
+  60%  { transform: scale(0.95) rotate(4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.item-icon.pet-bounce { animation: pet-bounce 0.35s ease; }

@@ -18,6 +18,14 @@
     <button class="icon-btn header-icon-btn" id="travel-icon-btn" title="Travel">🌀 Travel</button>
     <button class="icon-btn header-icon-btn" id="leaderboards-icon-btn" title="Leaderboards">🏆 Leaderboards</button>
   </div>
+
+  <!-- ===================== COMBAT STATUS BAR (persistent once the Combat Realm is unlocked) ===================== -->
+  <div class="combat-status-bar" id="combat-status-bar" style="display:none;">
+    <div class="combat-status-level" id="combat-status-level">⚔️ Combat Lvl 1</div>
+    <div class="combat-status-xp-track"><div class="combat-status-xp-fill" id="combat-status-xp-fill"></div></div>
+    <div class="combat-status-fremantium" id="combat-status-fremantium">💰 0</div>
+  </div>
+
   <div class="header-dropdown" id="player-dropdown" style="display:none;"></div>
   <div class="header-dropdown" id="weapons-dropdown" style="display:none;"></div>
   <div class="header-dropdown" id="travel-dropdown" style="display:none;"></div>
@@ -46,6 +54,7 @@
     <h1 class="fremantia-title">Fremantia</h1>
     <div class="fremantia-sub">Choose a realm to begin your adventure</div>
     <div class="realm-grid" id="realm-grid"></div>
+    <div class="fifth-portal combat-portal" id="combat-portal"></div>
     <div class="fifth-portal" id="fifth-portal"></div>
     <div class="btn-row" style="margin:6px 0 26px;">
       <button class="btn secondary" id="open-highscores-btn">🏆 High Scores</button>
@@ -117,8 +126,8 @@
         <div class="battle-chip" id="battle-realm-chip"></div>
         <div class="battle-chip" id="battle-world-chip"></div>
         <div class="battle-chip" id="battle-monster-chip"></div>
+        <div class="timer-pill" id="timer-pill">⏱ 60s</div>
       </div>
-      <div class="timer-pill" id="timer-pill">⏱ 60s</div>
     </div>
     <div class="stage-track" id="stage-track"></div>
 
@@ -135,9 +144,6 @@
       <div class="answer-display" id="answer-display">?</div>
     </div>
 
-    <div class="numpad-toolbar">
-      <button class="icon-btn" id="numpad-flip-btn" title="Flip number pad">🔃</button>
-    </div>
     <div class="numpad" id="numpad"></div>
     <div class="keyboard-hint">⌨️ You can also type your answer and press Enter</div>
   </div>
@@ -166,13 +172,166 @@
     <div class="eyebrow-plain" style="margin-top:10px;">⌨️ Use ↑/↓ then Enter, or just tap</div>
   </div>
 
+  <!-- ===================== COMBAT REALM: HUB ===================== -->
+  <div class="screen" id="screen-combat-hub">
+    <div class="topbar">
+      <button class="icon-btn" data-back-fremantia>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2>⚔️ Combat Realm</h2>
+      <div class="eyebrow-plain">Monsters fight back here.</div>
+    </div>
+    <div class="energy-bar-wrap">
+      <div class="energy-label">Energy <span id="combat-energy-label"></span></div>
+      <div class="energy-pips" id="combat-energy-pips"></div>
+      <div class="eyebrow-plain">+1 Energy per genuine 60-second fluency attempt · 5 Energy per battle</div>
+    </div>
+    <div class="combat-hub-grid">
+      <button class="btn combat-hub-btn" id="combat-nav-battle">⚔️<br>Battle</button>
+      <button class="btn combat-hub-btn" id="combat-nav-attributes">📈<br>Attributes</button>
+      <button class="btn combat-hub-btn" id="combat-nav-shop">🛒<br>Shop</button>
+      <button class="btn combat-hub-btn" id="combat-nav-pets">🐾<br>Pets</button>
+      <button class="btn combat-hub-btn" id="combat-nav-trophies">🏆<br>Trophies</button>
+    </div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: BATTLE (monster select) ===================== -->
+  <div class="screen" id="screen-combat-select">
+    <div class="topbar">
+      <button class="icon-btn" data-back-combat-hub>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2>Choose a Monster</h2>
+      <div class="eyebrow-plain">Costs 5 Energy per battle · previously-defeated monsters stay fightable</div>
+    </div>
+    <div class="combat-monster-list" id="combat-monster-list"></div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: WEAPON SELECT ===================== -->
+  <div class="screen" id="screen-combat-weapon-select">
+    <div class="topbar">
+      <button class="icon-btn" data-back-combat-select>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2 id="combat-weapon-select-title">Choose Your Weapon</h2>
+      <div class="eyebrow-plain" id="combat-weapon-select-sub"></div>
+    </div>
+    <div class="combat-weapon-list" id="combat-weapon-list"></div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: LIVE BATTLE ===================== -->
+  <div class="screen" id="screen-combat-battle">
+    <div class="battle-topbar">
+      <button class="icon-btn leave-battle-btn" id="combat-leave-battle-btn" title="Flee battle">✕</button>
+      <div class="battle-topbar-center">
+        <div class="battle-chip" id="combat-battle-weapon-chip"></div>
+        <div class="battle-chip" id="combat-battle-monster-chip"></div>
+        <div class="battle-chip" id="combat-battle-type-chip"></div>
+      </div>
+    </div>
+
+    <div class="combat-vs-row">
+      <div class="combat-combatant">
+        <div class="combat-combatant-label">Your Hero</div>
+        <div class="hp-bar-wrap"><div class="hp-bar-fill" id="combat-player-hp-fill"></div></div>
+        <div class="hp-label" id="combat-player-hp-label"></div>
+      </div>
+      <div class="combat-vs-emoji">⚔️</div>
+      <div class="combat-combatant">
+        <div class="combat-combatant-label" id="combat-monster-name-label"></div>
+        <div class="monster-sprite" id="combat-monster-sprite"></div>
+        <div class="hp-bar-wrap"><div class="hp-bar-fill" id="combat-monster-hp-fill"></div></div>
+        <div class="hp-label" id="combat-monster-hp-label"></div>
+      </div>
+    </div>
+
+    <div class="combat-log" id="combat-log"></div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: BATTLE RESULT ===================== -->
+  <div class="screen result-screen" id="screen-combat-result">
+    <div class="result-icon" id="combat-result-icon"></div>
+    <div class="result-title" id="combat-result-title"></div>
+    <div class="result-body" id="combat-result-body"></div>
+    <div class="choice-row" id="combat-result-choice-row">
+      <button class="btn big choice-btn" id="combat-result-continue-btn" data-choice="continue">Choose Another Monster</button>
+      <button class="btn secondary big choice-btn" id="combat-result-hub-btn" data-choice="hub">Back to Combat Realm</button>
+    </div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: ATTRIBUTES ===================== -->
+  <div class="screen" id="screen-combat-attributes">
+    <div class="topbar">
+      <button class="icon-btn" data-back-combat-hub>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2>📈 Attributes</h2>
+      <div class="eyebrow-plain" id="combat-attr-level-label"></div>
+    </div>
+    <div class="combat-xp-bar-wrap">
+      <div class="hp-bar-wrap"><div class="hp-bar-fill" id="combat-xp-bar-fill"></div></div>
+      <div class="hp-label" id="combat-xp-bar-label"></div>
+    </div>
+    <div class="combat-attr-list" id="combat-attr-list"></div>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="btn secondary" id="combat-reset-attrs-btn">Reset Attributes</button>
+    </div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: SHOP ===================== -->
+  <div class="screen" id="screen-combat-shop">
+    <div class="topbar">
+      <button class="icon-btn" data-back-combat-hub>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2>🛒 Shop</h2>
+      <div class="eyebrow-plain" id="combat-shop-currency-label"></div>
+    </div>
+    <div class="btn-row" style="margin-bottom:10px;">
+      <button class="btn secondary shop-tab-btn active" id="combat-shop-tab-pets">🐾 Pets</button>
+      <button class="btn secondary shop-tab-btn" id="combat-shop-tab-trophies">🏆 Trophies</button>
+    </div>
+    <div class="combat-shop-grid" id="combat-shop-grid"></div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: PETS COLLECTION ===================== -->
+  <div class="screen" id="screen-combat-pets">
+    <div class="topbar">
+      <button class="icon-btn" data-back-combat-hub>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2>🐾 Your Pets</h2>
+    </div>
+    <div class="combat-shop-grid" id="combat-pets-grid"></div>
+  </div>
+
+  <!-- ===================== COMBAT REALM: TROPHIES COLLECTION ===================== -->
+  <div class="screen" id="screen-combat-trophies">
+    <div class="topbar">
+      <button class="icon-btn" data-back-combat-hub>‹</button>
+      <div></div>
+    </div>
+    <div class="realm-screen-header">
+      <h2>🏆 Your Trophies</h2>
+    </div>
+    <div class="combat-shop-grid" id="combat-trophies-grid"></div>
+  </div>
+
 </div>
 
 <script src="config.js"></script>
 <script src="gameData.js"></script>
+<script src="combatData.js"></script>
 <script src="mathEngine.js"></script>
 <script src="gameState.js"></script>
 <script src="backend.js"></script>
+<script src="sfx.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
