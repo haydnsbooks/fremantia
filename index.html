@@ -147,7 +147,10 @@
 
     <div class="battle-right">
       <div class="answer-display" id="answer-display">?</div>
-      <button class="btn secondary numpad-invert-btn" id="numpad-invert-btn">🔄 Invert Number Pad</button>
+      <div class="battle-toggle-row">
+        <button class="btn secondary numpad-invert-btn" id="numpad-invert-btn">🔄 Invert Number Pad</button>
+        <button class="btn secondary numpad-invert-btn" id="numpad-layout-btn">↕️ Vertical Layout</button>
+      </div>
       <div class="numpad" id="numpad"></div>
       <div class="keyboard-hint">⌨️ You can also type your answer and press Enter</div>
     </div>
@@ -190,7 +193,7 @@
     <div class="energy-bar-wrap">
       <div class="energy-label">Energy <span id="combat-energy-label"></span></div>
       <div class="energy-pips" id="combat-energy-pips"></div>
-      <div class="eyebrow-plain">+1 Energy per stage cleared (or 8+ correct in a failed attempt) · 2 Energy per battle</div>
+      <div class="eyebrow-plain">+1 Energy per stage cleared (once per hour, per stage) · unlimited +1 Energy for 8+ correct in a failed attempt · 2 Energy per battle</div>
     </div>
     <div class="combat-hub-grid">
       <button class="btn combat-hub-btn" id="combat-nav-battle">⚔️<br>Battle</button>

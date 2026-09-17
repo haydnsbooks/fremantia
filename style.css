@@ -520,6 +520,13 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
 }
 .answer-placeholder { opacity: 0.35; }
 
+.battle-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .numpad-invert-btn {
   font-size: 0.95rem;
   padding: 10px 20px;
@@ -530,6 +537,20 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
   border-color: var(--hub-gold);
   color: var(--hub-gold);
   background: rgba(232,193,112,0.12);
+}
+
+/* Manual "Vertical Layout" toggle — lets a student stack the question panel
+   above the number pad (old style) instead of the default side-by-side
+   split, independent of screen size/orientation. Mirrors the narrow-viewport
+   media query above, but applied on demand via a class instead of a query.
+   Combined with the #screen-battle ID selector so it wins over the plain
+   `#screen-battle { flex-direction: row }` rule despite coming later. */
+#screen-battle.battle-layout-vertical { flex-direction: column; }
+.battle-layout-vertical .battle-left { flex: 0 0 auto; }
+.battle-layout-vertical .battle-right {
+  flex: 1 1 auto;
+  border-left: none;
+  border-top: 1px solid rgba(255,255,255,0.12);
 }
 
 .numpad {

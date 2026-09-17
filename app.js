@@ -929,7 +929,10 @@ function finishBattle(success) {
   clearInterval(battle.timerHandle);
 
   // Combat Realm Energy — independent of whether the stage itself was won.
-  battle.earnedEnergy = qualifiesForEnergy(battle, success) && awardEnergyForAttempt();
+  // Failed-but-8+-correct attempts are unlimited; successful clears of the
+  // same stage are limited to once per hour (see awardEnergyForAttempt()).
+  battle.earnedEnergy = qualifiesForEnergy(battle, success) &&
+    awardEnergyForAttempt(stageEnergyKey(battle.realmId, battle.worldId, battle.stageId), success);
 
   if (success) {
     const result = completeStage(battle.realmId, battle.worldId, battle.stageId);
@@ -1149,6 +1152,24 @@ function toggleNumpadInvert() {
   if (btn) btn.classList.toggle("active", numpadInverted);
 }
 
+// Manual layout toggle: "side split" (default, question left / numpad right
+// — the new layout) vs "vertical split" (old style, everything stacked in
+// one column). Some students prefer one, some the other, so it's a button
+// rather than something decided automatically by screen size. Purely
+// visual — doesn't touch battle state, and resets to the default each
+// session, same as the invert-numpad toggle above.
+let numpadLayoutVertical = false;
+function toggleNumpadLayout() {
+  numpadLayoutVertical = !numpadLayoutVertical;
+  const screen = el("screen-battle");
+  if (screen) screen.classList.toggle("battle-layout-vertical", numpadLayoutVertical);
+  const btn = el("numpad-layout-btn");
+  if (btn) {
+    btn.classList.toggle("active", numpadLayoutVertical);
+    btn.textContent = numpadLayoutVertical ? "↔️ Side-by-Side Layout" : "↕️ Vertical Layout";
+  }
+}
+
 // ============================================================================
 // COMBAT REALM — optional side-game. Reads combatData.js (COMBAT_CONFIG,
 // COMBAT_MONSTERS, SHOP_ITEMS) and the STATE.combat helpers in gameState.js.
@@ -1168,7 +1189,7 @@ async function openCombatRealm() {
       body: `Here, monsters fight back.<br><br>
              Defeat them to earn <b>Combat XP</b> (which levels up your combat attributes) and <b>Fremantium</b> (currency you can spend in the Shop on pets and trophies).<br><br>
              <b>Battles:</b> choose a weapon, then watch your hero and the monster trade blows automatically. Your <b>Attack</b>, <b>Attack Speed</b>, <b>Vitality</b> and <b>Defence</b> all affect how the fight goes.<br><br>
-             <b>Energy:</b> clearing a stage in the main game earns you 1 Energy (up to 10) — and even a failed attempt earns Energy if you got 8 or more correct before the portal closed. Each battle costs ${COMBAT_CONFIG.ENERGY_COST_PER_BATTLE} Energy — so keep practising your maths to keep fighting!<br><br>
+             <b>Energy:</b> clearing a stage in the main game earns you 1 Energy (up to 10) — but clearing that same stage again only earns Energy once per hour. Getting 8 or more correct in a failed attempt always earns Energy, no matter how many times you try. Each battle costs ${COMBAT_CONFIG.ENERGY_COST_PER_BATTLE} Energy — so keep practising your maths to keep fighting!<br><br>
              <b>Elements:</b> each monster has an element, and each weapon is strong against one element and weak against another — match them well.`,
       buttons: [{ label: "Let's Fight!", value: true, primary: true }]
     });
@@ -1504,6 +1525,7 @@ document.addEventListener("DOMContentLoaded", () => {
   el("open-highscores-btn").addEventListener("click", openHighScores);
   el("leave-battle-btn").addEventListener("click", leaveBattle);
   el("numpad-invert-btn").addEventListener("click", toggleNumpadInvert);
+  el("numpad-layout-btn").addEventListener("click", toggleNumpadLayout);
   document.querySelectorAll("[data-back-realm]").forEach(b => b.addEventListener("click", () => { renderRealmScreen(); showScreen("screen-realm"); }));
   document.querySelectorAll("[data-back-fremantia]").forEach(b => b.addEventListener("click", () => { renderFremantia(); showScreen("screen-fremantia"); }));
   document.querySelectorAll("[data-back-world]").forEach(b => b.addEventListener("click", () => { renderWorldScreen(); showScreen("screen-world"); }));

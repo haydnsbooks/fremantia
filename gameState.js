@@ -43,7 +43,12 @@ function freshState() {
       bossesDefeated: {}, // monster id (17-20) -> true
       fremantium: 0,
       ownedItems: {}, // shop item id -> true
-      firstEntrySeen: false
+      firstEntrySeen: false,
+      // "Forest:World 1:A1" -> hour-bucket (see currentHourBucket()) of the
+      // last time CLEARING this stage awarded Energy. Limits Energy-farming
+      // via repeatedly replaying an already-mastered stage. Failed attempts
+      // with 8+ correct are NOT limited by this — see awardEnergyForAttempt().
+      energyClearHour: {}
     }
   };
 }
@@ -328,12 +333,37 @@ function spendEnergyForBattle() {
   saveState();
   return true;
 }
+function stageEnergyKey(realmId, worldId, stageId) {
+  return `${realmId}:${worldId}:${stageId}`;
+}
+// Whole-hour bucket (e.g. every clock hour is its own bucket) rather than a
+// rolling "60 minutes since last time" — much simpler to store/compare, and
+// it's still at most an hour's wait either way.
+function currentHourBucket() {
+  return Math.floor(Date.now() / 3600000);
+}
+
 // Called once per finished 60s fluency attempt (success OR fail) that passed
-// the "genuine attempt" check in app.js. Returns true if energy was actually
-// gained (false if already at cap).
-function awardEnergyForAttempt() {
+// the "genuine attempt" check in app.js. `stageKey` identifies the exact
+// stage (see stageEnergyKey); `success` is whether the stage was cleared.
+//
+//   - Failed attempts (8+ correct before the portal closed) are UNLIMITED —
+//     every genuine failed attempt earns Energy, no matter how many times
+//     the player has tried that stage.
+//   - Successful clears are limited to once per stage per hour, so a student
+//     can't farm Energy by replaying a stage they've already mastered —
+//     resets automatically every hour (see currentHourBucket()).
+//
+// Either way this is still capped by ENERGY_CAP overall. Returns true if
+// Energy was actually gained.
+function awardEnergyForAttempt(stageKey, success) {
+  if (success) {
+    const bucket = currentHourBucket();
+    if (STATE.combat.energyClearHour[stageKey] === bucket) return false; // already claimed this hour
+  }
   if (STATE.combat.energy >= COMBAT_CONFIG.ENERGY_CAP) return false;
   STATE.combat.energy = Math.min(COMBAT_CONFIG.ENERGY_CAP, STATE.combat.energy + 1);
+  if (success) STATE.combat.energyClearHour[stageKey] = currentHourBucket();
   saveState();
   return true;
 }
