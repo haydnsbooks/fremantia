@@ -9,9 +9,11 @@
 
 const COMBAT_CONFIG = {
   ENERGY_CAP: 10,
-  ENERGY_COST_PER_BATTLE: 5,
-  MIN_ANSWERS_FOR_ENERGY: 3,
-  MIN_SECONDS_BETWEEN_ANSWERS: 1.5,
+  ENERGY_COST_PER_BATTLE: 2,
+  // Minimum correct answers a failed (timed-out) 60-second attempt needs to
+  // still earn Energy. A successful attempt (stage cleared) always earns
+  // Energy regardless of this threshold. See qualifiesForEnergy() in app.js.
+  MIN_CORRECT_FOR_ENERGY_ON_FAIL: 8,
 
   // Attribute steps — see combat_realm_design.md §3. Sum of levelsToMax (39)
   // + starting level (1) = MAX_COMBAT_LEVEL (40).
@@ -46,6 +48,12 @@ const COMBAT_CONFIG = {
 };
 
 const COMBAT_ELEMENT_ICON = { Forest: "🌲", Water: "🌊", Fire: "🔥", Ice: "❄️" };
+
+// Weapon icons reflect each weapon's own theme/name (not the realm it's
+// wielded in) — e.g. Emberblade (the Ice realm's weapon) shows an ember/fire
+// icon, not the Ice realm's snowflake. Used only in Combat Realm weapon
+// selection, where all four weapons are usable regardless of realm.
+const COMBAT_WEAPON_ICON = { Forest: "⚔️", Water: "🌿", Fire: "🌊", Ice: "🔥" };
 
 // ----------------------------------------------------------------------------
 // TYPE EFFECTIVENESS

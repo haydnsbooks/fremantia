@@ -117,35 +117,40 @@
 
   <!-- ===================== BATTLE ===================== -->
   <div class="screen" id="screen-battle">
-    <div class="battle-topbar">
-      <button class="icon-btn leave-battle-btn" id="leave-battle-btn" title="Leave battle">✕</button>
-      <div class="battle-topbar-center">
-        <div class="battle-chip" id="battle-weapon-chip"></div>
-        <div class="battle-chip" id="battle-weapon-lvl-chip"></div>
-        <div class="battle-chip" id="battle-weapon-dmg-chip"></div>
-        <div class="battle-chip" id="battle-realm-chip"></div>
-        <div class="battle-chip" id="battle-world-chip"></div>
-        <div class="battle-chip" id="battle-monster-chip"></div>
-        <div class="timer-pill" id="timer-pill">⏱ 60s</div>
+    <div class="battle-left">
+      <div class="battle-topbar">
+        <button class="icon-btn leave-battle-btn" id="leave-battle-btn" title="Leave battle">✕</button>
+        <div class="battle-topbar-center">
+          <div class="battle-chip" id="battle-weapon-chip"></div>
+          <div class="battle-chip" id="battle-weapon-lvl-chip"></div>
+          <div class="battle-chip" id="battle-weapon-dmg-chip"></div>
+          <div class="battle-chip" id="battle-realm-chip"></div>
+          <div class="battle-chip" id="battle-world-chip"></div>
+          <div class="battle-chip" id="battle-monster-chip"></div>
+          <div class="timer-pill" id="timer-pill">⏱ 60s</div>
+        </div>
+      </div>
+      <div class="stage-track" id="stage-track"></div>
+
+      <div class="monster-stage">
+        <div class="monster-name" id="monster-name"></div>
+        <div class="monster-role-tag" id="monster-role-tag"></div>
+        <div class="monster-sprite" id="monster-sprite"></div>
+        <div class="hp-bar-wrap"><div class="hp-bar-fill" id="hp-bar-fill"></div></div>
+        <div class="hp-label" id="hp-label"></div>
+      </div>
+
+      <div class="question-panel">
+        <div class="question-text" id="question-text"></div>
       </div>
     </div>
-    <div class="stage-track" id="stage-track"></div>
 
-    <div class="monster-stage">
-      <div class="monster-name" id="monster-name"></div>
-      <div class="monster-role-tag" id="monster-role-tag"></div>
-      <div class="monster-sprite" id="monster-sprite"></div>
-      <div class="hp-bar-wrap"><div class="hp-bar-fill" id="hp-bar-fill"></div></div>
-      <div class="hp-label" id="hp-label"></div>
-    </div>
-
-    <div class="question-panel">
-      <div class="question-text" id="question-text"></div>
+    <div class="battle-right">
       <div class="answer-display" id="answer-display">?</div>
+      <button class="btn secondary numpad-invert-btn" id="numpad-invert-btn">🔄 Invert Number Pad</button>
+      <div class="numpad" id="numpad"></div>
+      <div class="keyboard-hint">⌨️ You can also type your answer and press Enter</div>
     </div>
-
-    <div class="numpad" id="numpad"></div>
-    <div class="keyboard-hint">⌨️ You can also type your answer and press Enter</div>
   </div>
 
   <!-- ===================== SUCCESS ===================== -->
@@ -185,7 +190,7 @@
     <div class="energy-bar-wrap">
       <div class="energy-label">Energy <span id="combat-energy-label"></span></div>
       <div class="energy-pips" id="combat-energy-pips"></div>
-      <div class="eyebrow-plain">+1 Energy per genuine 60-second fluency attempt · 5 Energy per battle</div>
+      <div class="eyebrow-plain">+1 Energy per stage cleared (or 8+ correct in a failed attempt) · 2 Energy per battle</div>
     </div>
     <div class="combat-hub-grid">
       <button class="btn combat-hub-btn" id="combat-nav-battle">⚔️<br>Battle</button>
@@ -204,7 +209,7 @@
     </div>
     <div class="realm-screen-header">
       <h2>Choose a Monster</h2>
-      <div class="eyebrow-plain">Costs 5 Energy per battle · previously-defeated monsters stay fightable</div>
+      <div class="eyebrow-plain">Costs 2 Energy per battle · previously-defeated monsters stay fightable</div>
     </div>
     <div class="combat-monster-list" id="combat-monster-list"></div>
   </div>

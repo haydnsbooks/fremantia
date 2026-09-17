@@ -329,7 +329,41 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
 @keyframes portalPulse { 0%,100% { box-shadow: 0 0 20px rgba(255,255,255,0.4);} 50% { box-shadow: 0 0 50px rgba(255,255,255,0.75);} }
 
 /* ---------------- Battle screen ---------------- */
-#screen-battle { position: relative; }
+/* Two-pane layout: battle info (monster/question) on the left, the answer
+   input and number pad on the right. This keeps the number pad from being
+   pushed down below the fold by everything stacking vertically on an iPad
+   screen. Falls back to a stacked column on narrow/portrait viewports. */
+#screen-battle {
+  position: relative;
+  flex-direction: row;
+  align-items: stretch;
+}
+.battle-left {
+  flex: 1 1 55%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.battle-right {
+  flex: 1 1 45%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-left: 1px solid rgba(255,255,255,0.12);
+}
+@media (max-width: 700px), (max-aspect-ratio: 4/5) {
+  #screen-battle { flex-direction: column; }
+  .battle-left { flex: 0 0 auto; }
+  .battle-right { flex: 1 1 auto; border-left: none; border-top: 1px solid rgba(255,255,255,0.12); }
+}
 .battle-topbar {
   display: flex;
   align-items: center;
@@ -485,6 +519,18 @@ h1, h2, h3 { font-family: var(--font-display); margin: 0 0 8px; }
   80% { transform: translateX(4px); }
 }
 .answer-placeholder { opacity: 0.35; }
+
+.numpad-invert-btn {
+  font-size: 0.95rem;
+  padding: 10px 20px;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+.numpad-invert-btn.active {
+  border-color: var(--hub-gold);
+  color: var(--hub-gold);
+  background: rgba(232,193,112,0.12);
+}
 
 .numpad {
   flex-shrink: 0;

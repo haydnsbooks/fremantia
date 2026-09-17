@@ -727,10 +727,10 @@ function startBattle(realmId, worldId, stageId) {
     question: null,
     bossDefeated: false,
     finished: false,
-    // Timestamps of every answer submitted (correct or wrong) this attempt —
-    // used to decide whether the attempt was a "genuine" one for Combat
-    // Realm Energy purposes. See checkGenuineAttempt().
-    answerTimestamps: [],
+    // Count of correct answers submitted this attempt — used to decide
+    // whether a FAILED (timed-out) attempt still earns Combat Realm Energy.
+    // See qualifiesForEnergy().
+    correctCount: 0,
     // Locked while a correct answer is being resolved (hit animation,
     // monster-defeat delay, etc.) so a fast double-tap on Attack can't
     // register a second hit against the same question. Cleared as soon
@@ -865,9 +865,8 @@ function submitAnswer() {
   const correct = Math.abs(val - battle.question.answer) < 0.005;
   const display = el("answer-display");
 
-  battle.answerTimestamps.push(Date.now());
-
   if (correct) {
+    battle.correctCount++;
     battle.locked = true;
     display.classList.add("correct");
     SFX.correctAnswer();
@@ -915,15 +914,13 @@ function applyHit() {
   }
 }
 
-// A "genuine" 60-second attempt: enough real answers, spaced out enough to
-// rule out idle-then-spam farming. See combat_realm_design.md §2.
-function checkGenuineAttempt(b) {
-  const times = b.answerTimestamps || [];
-  if (times.length < COMBAT_CONFIG.MIN_ANSWERS_FOR_ENERGY) return false;
-  for (let i = 1; i < times.length; i++) {
-    if (times[i] - times[i - 1] < COMBAT_CONFIG.MIN_SECONDS_BETWEEN_ANSWERS * 1000) return false;
-  }
-  return true;
+// Whether this finished 60-second attempt earns Combat Realm Energy.
+// A successful stage clear always qualifies; a failed (timed-out) attempt
+// still qualifies if the player answered at least MIN_CORRECT_FOR_ENERGY_ON_FAIL
+// questions correctly before time ran out. See combat_realm_design.md §2.
+function qualifiesForEnergy(b, success) {
+  if (success) return true;
+  return (b.correctCount || 0) >= COMBAT_CONFIG.MIN_CORRECT_FOR_ENERGY_ON_FAIL;
 }
 
 function finishBattle(success) {
@@ -932,7 +929,7 @@ function finishBattle(success) {
   clearInterval(battle.timerHandle);
 
   // Combat Realm Energy — independent of whether the stage itself was won.
-  battle.earnedEnergy = checkGenuineAttempt(battle) && awardEnergyForAttempt();
+  battle.earnedEnergy = qualifiesForEnergy(battle, success) && awardEnergyForAttempt();
 
   if (success) {
     const result = completeStage(battle.realmId, battle.worldId, battle.stageId);
@@ -1116,9 +1113,16 @@ function showNextModal(queue, i, onDone) {
 // ---------------------------------------------------------------------------
 // BOOTSTRAP
 // ---------------------------------------------------------------------------
+// Number pad key order. Default descending (matches a phone dial pad);
+// inverted is ascending (matches a calculator). Toggled by the "Invert
+// Number Pad" button — see wireNumpadInvertButton().
+const NUMPAD_ORDER_DEFAULT = ["7","8","9","4","5","6","1","2","3",".","0","back"];
+const NUMPAD_ORDER_INVERTED = ["1","2","3","4","5","6","7","8","9",".","0","back"];
+let numpadInverted = false;
+
 function buildNumpad() {
   const pad = el("numpad");
-  const keys = ["7","8","9","4","5","6","1","2","3",".","0","back"];
+  const keys = numpadInverted ? NUMPAD_ORDER_INVERTED : NUMPAD_ORDER_DEFAULT;
   pad.innerHTML = "";
   keys.forEach(k => {
     const b = document.createElement("button");
@@ -1133,6 +1137,16 @@ function buildNumpad() {
   submit.textContent = "Attack! ⚔️";
   submit.addEventListener("click", () => numpadPress("submit"));
   pad.appendChild(submit);
+}
+
+// Rebuilds the pad in the other key order. Doesn't touch battle state (the
+// in-progress answer buffer / question / timer are untouched) — only the
+// physical button layout changes.
+function toggleNumpadInvert() {
+  numpadInverted = !numpadInverted;
+  buildNumpad();
+  const btn = el("numpad-invert-btn");
+  if (btn) btn.classList.toggle("active", numpadInverted);
 }
 
 // ============================================================================
@@ -1154,7 +1168,7 @@ async function openCombatRealm() {
       body: `Here, monsters fight back.<br><br>
              Defeat them to earn <b>Combat XP</b> (which levels up your combat attributes) and <b>Fremantium</b> (currency you can spend in the Shop on pets and trophies).<br><br>
              <b>Battles:</b> choose a weapon, then watch your hero and the monster trade blows automatically. Your <b>Attack</b>, <b>Attack Speed</b>, <b>Vitality</b> and <b>Defence</b> all affect how the fight goes.<br><br>
-             <b>Energy:</b> every real 60-second fluency attempt in the main game earns you 1 Energy (up to 10). Each battle costs 5 Energy — so keep practising your maths to keep fighting!<br><br>
+             <b>Energy:</b> clearing a stage in the main game earns you 1 Energy (up to 10) — and even a failed attempt earns Energy if you got 8 or more correct before the portal closed. Each battle costs ${COMBAT_CONFIG.ENERGY_COST_PER_BATTLE} Energy — so keep practising your maths to keep fighting!<br><br>
              <b>Elements:</b> each monster has an element, and each weapon is strong against one element and weak against another — match them well.`,
       buttons: [{ label: "Let's Fight!", value: true, primary: true }]
     });
@@ -1228,7 +1242,7 @@ function openCombatWeaponSelect(monsterId) {
     const card = document.createElement("div");
     card.className = "combat-weapon-card";
     card.innerHTML = `
-      <div class="combat-monster-icon">${COMBAT_ELEMENT_ICON[w.realmId]}</div>
+      <div class="combat-monster-icon">${COMBAT_WEAPON_ICON[w.realmId]}</div>
       <div class="combat-monster-info">
         <div class="name">${w.name}</div>
         <div class="sub">Lv ${w.level} · ${w.damage} dmg</div>
@@ -1489,6 +1503,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   el("open-highscores-btn").addEventListener("click", openHighScores);
   el("leave-battle-btn").addEventListener("click", leaveBattle);
+  el("numpad-invert-btn").addEventListener("click", toggleNumpadInvert);
   document.querySelectorAll("[data-back-realm]").forEach(b => b.addEventListener("click", () => { renderRealmScreen(); showScreen("screen-realm"); }));
   document.querySelectorAll("[data-back-fremantia]").forEach(b => b.addEventListener("click", () => { renderFremantia(); showScreen("screen-fremantia"); }));
   document.querySelectorAll("[data-back-world]").forEach(b => b.addEventListener("click", () => { renderWorldScreen(); showScreen("screen-world"); }));
